@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-
 namespace nebula
 {
 
@@ -51,6 +50,8 @@ static uint32_t ShaderDataTypeSize(ShaderDataType type)
         return 4 * 4;
     case ShaderDataType::Bool:
         return 1;
+    case ShaderDataType::None:
+        break;
     }
     NEBULA_ERROR("Unknown ShaderDataType!");
     return 0;
@@ -96,6 +97,8 @@ struct BufferElement
             return 4;
         case ShaderDataType::Bool:
             return 1;
+        case ShaderDataType::None:
+            break;
         }
         return 0;
     }
