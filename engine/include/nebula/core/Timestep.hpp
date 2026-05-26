@@ -3,10 +3,10 @@
 namespace nebula
 {
 
-class Timestamp
+class Timestep
 {
   public:
-    Timestamp(float time = 0.0f) : m_Time(time) {}
+    Timestep(float time = 0.0f) : m_Time(time) {}
 
     operator float() const { return m_Time; }
 

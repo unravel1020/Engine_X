@@ -2,7 +2,9 @@
 
 #include "Window.hpp"
 #include "core/LayerStack.hpp"
+#include "event/ApplicationEvent.hpp"
 #include <memory>
+
 
 namespace nebula
 {
@@ -22,6 +24,9 @@ class Application
     inline static Application& Get() { return *s_Instance; }
 
   private:
+    void OnEvent(Event& event);
+    bool OnWindowClose(WindowCloseEvent& event);
+
     bool m_Running = true;
     std::unique_ptr<Window> m_Window;
     LayerStack m_LayerStack;

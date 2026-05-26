@@ -2,9 +2,8 @@
 
 #include <string>
 
-#include "nebula/core/Timestamp.hpp"
+#include "nebula/core/Timestep.hpp"
 #include "nebula/event/Event.hpp"
-
 
 namespace nebula
 {
@@ -20,7 +19,7 @@ class Layer
 
     virtual void OnDetach() {}
 
-    virtual void OnUpdate(Timestamp timestep) {}
+    virtual void OnUpdate(Timestep timestep) {}
 
     virtual void OnEvent(Event& event) {}
 
