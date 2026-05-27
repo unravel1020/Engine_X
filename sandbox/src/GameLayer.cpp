@@ -1,103 +1,92 @@
 #include "GameLayer.hpp"
-#include "nebula/core/Layer.hpp"
+#include "../include/nebula/renderer/RenderCommand.hpp" // 引入渲染指令
+#include "../include/nebula/renderer/Renderer.hpp"      // 引入渲染器
+#include "nebula/core/Input.hpp"                        // 引入输入系统
 #include "nebula/core/Log.hpp"
-#include "nebula/core/Timestamp.hpp"
-#include "nebula/event/Event.hpp"
-#include <glad/glad.h> // 为下一步渲染做准备
+#include <GLFW/glfw3.h> // 引入 GLFW 键盘输入定义
 
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h> // 需要这个来获取时间戳
 
-// 1. 构造函数实现
-GameLayer::GameLayer() : Layer("GameLayer") {}
-// 顶点着色器：将坐标传给 GPU
-const char* vertexShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
-    void main() {
-        gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-    }
-)";
+GameLayer::GameLayer() : Layer("GameLayer"), m_Camera(-1.6f, 1.6f, -0.9f, 0.9f) {}
 
-// 片段着色器：输出橙色
-const char* fragmentShaderSource = R"(
-    #version 330 core
-    out vec4 FragColor;
-    void main() {
-        FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-    }
-)";
-// 2. OnAttach 实现
 void GameLayer::OnAttach()
 {
-    NEBULA_INFO("GameLayer Attached");
+    NEBULA_INFO("GameLayer Attached: Using Nebula Abstractions");
 
-    // 1. 编译顶点着色器
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    // 2. 编译片段着色器
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-
-    // 3. 链接着色器程序
-    shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    // 释放着色器源码资源
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    // 4. 定义三角形顶点（NDC 坐标系：-1 到 1）
+    // 1. 定义顶点数据 (位置)
     float vertices[] = {
         -0.5f, -0.5f, 0.0f, // 左下角
         0.5f,  -0.5f, 0.0f, // 右下角
         0.0f,  0.5f,  0.0f  // 顶部
     };
 
-    // 5. 创建缓冲区对象
-    glGenVertexArrays(1, &VAO); // VAO：顶点数组对象（说明书）
-    glGenBuffers(1, &VBO);      // VBO：顶点缓冲对象（仓库）
+    // 2. 创建 VAO
+    m_VertexArray = std::make_shared<nebula::VertexArray>();
 
-    // 绑定 VAO
-    glBindVertexArray(VAO);
+    // 3. 创建 VBO 并设置 Layout (这是你之前写的 BufferLayout 逻辑)
+    auto vertexBuffer = std::make_shared<nebula::VertexBuffer>(vertices, sizeof(vertices));
 
-    // 绑定 VBO 并填充数据
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // 关键点：这里定义了 Shader 如何读取顶点数据
+    nebula::BufferLayout layout = {{nebula::ShaderDataType::Float3, "a_Position"}};
+    vertexBuffer->SetLayout(layout);
 
-    // 告诉 GPU 怎么解析这些数据：位置 0，3 个浮点数，不归一化，步长 3*float，偏移 0
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
+    // 将 VBO 放入 VAO
+    m_VertexArray->AddVertexBuffer(vertexBuffer);
 
-    // 解绑
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    // 4. 创建 IBO (索引缓冲)
+    uint32_t indices[3] = {0, 1, 2};
+    auto indexBuffer = std::make_shared<nebula::IndexBuffer>(indices, 3);
+    m_VertexArray->SetIndexBuffer(indexBuffer);
+
+    // 5. 创建 Shader
+    const std::string vertexSrc = R"(
+        #version 330 core
+        
+        layout (location = 0) in vec3 a_Position;
+
+        // 必须在这里定义
+        uniform mat4 u_ViewProjection;
+
+        void main() {
+            // 必须在这里使用，否则会被编译器优化掉
+            gl_Position = u_ViewProjection * vec4(a_Position, 1.0);
+        }
+    )";
+
+    const std::string fragmentSrc = R"(
+        #version 330 core
+        out vec4 FragColor;
+        void main() {
+            FragColor = vec4(0.8f, 0.3f, 0.2f, 1.0f);
+        }
+    )";
+
+    m_Shader = std::make_shared<nebula::Shader>(vertexSrc, fragmentSrc);
 }
-// 3. OnDetach 实现 (之前报错找不到这个)
-void GameLayer::OnDetach() { NEBULA_INFO("GameLayer Detached"); }
 
-// 4. OnUpdate 实现
-void GameLayer::OnUpdate(nebula::Timestamp ts)
+void GameLayer::OnUpdate(nebula::Timestep ts)
 {
-    // 1. 清屏
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // 深灰色背景
-    glClear(GL_COLOR_BUFFER_BIT);
+    // 摄像机移动逻辑
+    float speed = 2.0f;
+    if (nebula::Input::IsKeyPressed(GLFW_KEY_A))
+        m_CameraPosition.x -= speed * ts;
+    else if (nebula::Input::IsKeyPressed(GLFW_KEY_D))
+        m_CameraPosition.x += speed * ts;
 
-    // 2. 绑定着色器
-    glUseProgram(shaderProgram);
+    if (nebula::Input::IsKeyPressed(GLFW_KEY_W))
+        m_CameraPosition.y += speed * ts;
+    else if (nebula::Input::IsKeyPressed(GLFW_KEY_S))
+        m_CameraPosition.y -= speed * ts;
 
-    // 3. 绑定 VAO 并绘制
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3); // 画三角形，从第 0 个点开始，共 3 个点
+    m_Camera.SetPosition(m_CameraPosition);
+
+    // 渲染
+    nebula::RenderCommand::SetClearColor({0.1f, 0.1f, 0.1f, 1.0f});
+    nebula::RenderCommand::Clear();
+
+    nebula::Renderer::BeginScene(m_Camera);
+    nebula::Renderer::Submit(m_Shader, m_VertexArray);
+    nebula::Renderer::EndScene();
 }
 
-// 5. OnEvent 实现 (之前报错找不到这个)
-void GameLayer::OnEvent(nebula::Event& event)
-{
-    // NEBULA_TRACE("Event received: {0}", event.GetName());
-}
+void GameLayer::OnDetach() {}
+void GameLayer::OnEvent(nebula::Event& event) {}

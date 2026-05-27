@@ -8,6 +8,10 @@ add_library(NebulaEngine STATIC
     src/renderer/Buffer.cpp
     src/renderer/Shader.cpp
     src/renderer/VertexArray.cpp
+    src/renderer/RenderCommand.cpp
+    src/renderer/OpenGL/OpenGLRenderAPI.cpp
+    src/renderer/Renderer.cpp
+    src/renderer/OrthographicCamera.cpp
 )
 
 target_include_directories(NebulaEngine PUBLIC

@@ -1,8 +1,8 @@
 #include "nebula/renderer/Shader.hpp"
 #include "nebula/core/Log.hpp"
 #include <glad/glad.h>
+#include <glm/gtc/type_ptr.hpp>
 #include <vector>
-
 
 namespace nebula
 {
@@ -40,6 +40,17 @@ Shader::Shader(const std::string& vertexSrc, const std::string& fragmentSrc)
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+}
+
+void Shader::SetMat4(const std::string& name, const glm::mat4& matrix) const
+{
+    int location = glGetUniformLocation(m_RendererID, name.c_str());
+    if (location == -1)
+    {
+        NEBULA_ERROR("Uniform '{0}' not found in shader!", name);
+        return;
+    }
+    glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(matrix));
 }
 
 Shader::~Shader() { glDeleteProgram(m_RendererID); }
